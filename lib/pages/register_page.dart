@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:modern_login/components/my_button.dart';
@@ -16,9 +17,11 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   //text editing controllers
   final emailController = TextEditingController();
-
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
+  final firstNameController = TextEditingController();
+  final secondNameController = TextEditingController();
+  final ageController = TextEditingController();
   //Sign userup method
   void signUserUp() async {
 
@@ -47,6 +50,8 @@ class _RegisterPageState extends State<RegisterPage> {
       email: emailController.text, 
       password: passwordController.text
       );
+
+      addUserDetails(firstNameController.text,secondNameController.text,emailController.text,ageController.text,passwordController.text);
       
       Navigator.pop(context);
     } on FirebaseAuthException catch(e){
@@ -54,6 +59,25 @@ class _RegisterPageState extends State<RegisterPage> {
       showErrorMessage(e.code);
     } 
   }
+
+
+    //Add details method
+    Future addUserDetails(String firstName, String secondName, String email, String age, String password) async{
+
+      await FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).set({
+        'first name': firstName,
+        'second name': secondName,
+        'email': email,
+        'age': age,
+        'password': password,
+      });
+
+
+
+    }
+
+
+
 
     //ERROR MESSAGE
     void showErrorMessage(String message){
@@ -107,6 +131,38 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
           
                 const SizedBox(height: 10,),
+
+
+                //first name
+                MyTextField(
+                  controller: firstNameController,
+                  hintText: 'First Name',
+                  obscureText: false,
+                ),
+          
+          
+                const SizedBox(height: 10,),
+
+                //second name
+                MyTextField(
+                  controller: secondNameController,
+                  hintText: 'Second Name',
+                  obscureText: false,
+                ),
+          
+          
+                const SizedBox(height: 10,),
+
+                //age
+                MyTextField(
+                  controller: ageController,
+                  hintText: 'Age',
+                  obscureText: false,
+                ),
+          
+          
+                const SizedBox(height: 10,),
+
                 
                 
                 //passowrd
@@ -125,11 +181,11 @@ class _RegisterPageState extends State<RegisterPage> {
                   controller: confirmPasswordController,
                   hintText: 'Confirm Password',
                   obscureText: true,
-          
                 ),
           
           
                 const SizedBox(height: 25,),
+
                 
                 //sign in buttom
                 MyButton(

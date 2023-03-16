@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:modern_login/pages/login_page.dart';
-
-import 'home_page.dart';
+import 'package:modern_login/pages/main_page.dart';
+import 'package:modern_login/pages/my_home_page.dart';
 import 'login_or_register_page.dart';
 
 class AuthPage extends StatelessWidget {
@@ -15,7 +15,7 @@ class AuthPage extends StatelessWidget {
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
           if(snapshot.hasData){
-            return HomePage();
+            return MainPage();
           }else{
             return LoginOrRegisterPage();
           }
