@@ -22,59 +22,80 @@ class _RegisterPageState extends State<RegisterPage> {
   final firstNameController = TextEditingController();
   final secondNameController = TextEditingController();
   final ageController = TextEditingController();
-  //Sign userup method
-  void signUserUp() async {
+  final usernameController = TextEditingController(); // Add this
 
-      //show loading
-      showDialog(
-        context: context, builder:(context) {
-          return Center(
-            child: CircularProgressIndicator(),
-          ); 
-        }
-        );
+  // Check if username is unique
+  Future<bool> isUsernameUnique(String username) async {
+    final usernameSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .where('username', isEqualTo: username)
+        .get();
 
-
-      if(passwordController.text != confirmPasswordController.text){
-        Navigator.pop(context);
-        //if different pass
-        showErrorMessage('Passwords don\'t match!');
-        return;
-      }
-
-    //sign up
-    try{
-      //if password match
-      
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
-      email: emailController.text, 
-      password: passwordController.text
-      );
-
-      addUserDetails(firstNameController.text,secondNameController.text,emailController.text,ageController.text,passwordController.text);
-      
-      Navigator.pop(context);
-    } on FirebaseAuthException catch(e){
-      Navigator.pop(context);
-      showErrorMessage(e.code);
-    } 
+    return usernameSnapshot.docs.isEmpty;
   }
 
+  // Sign user up method
+  void signUserUp() async {
+    // Show loading
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Center(
+          child: CircularProgressIndicator(),
+        );
+      },
+    );
 
-    //Add details method
-    Future addUserDetails(String firstName, String secondName, String email, String age, String password) async{
-
-      await FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).set({
-        'first name': firstName,
-        'second name': secondName,
-        'email': email,
-        'age': age,
-        'password': password,
-      });
-
-
-
+    if (passwordController.text != confirmPasswordController.text) {
+      Navigator.pop(context);
+      // If different passwords
+      showErrorMessage('Passwords don\'t match!');
+      return;
     }
+
+    if (await isUsernameUnique(usernameController.text)) {
+      // Sign up
+      try {
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: emailController.text,
+          password: passwordController.text,
+        );
+
+        addUserDetails(
+          firstNameController.text,
+          secondNameController.text,
+          emailController.text,
+          ageController.text,
+          passwordController.text,
+          usernameController.text, // Add this
+        );
+
+        Navigator.pop(context);
+      } on FirebaseAuthException catch (e) {
+        Navigator.pop(context);
+        showErrorMessage(e.code);
+      }
+    } else {
+      Navigator.pop(context);
+      showErrorMessage('Username is already taken');
+    }
+  }
+
+  // Add details method
+  Future addUserDetails(String firstName, String secondName, String email,
+      String age, String password, String username) async {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(FirebaseAuth.instance.currentUser!.uid)
+        .set({
+      'first name': firstName,
+      'second name': secondName,
+      'email': email,
+      'age': age,
+      'password': password,
+      'username': username, // Add this
+    });
+  }
 
 
 
@@ -162,6 +183,14 @@ class _RegisterPageState extends State<RegisterPage> {
           
           
                 const SizedBox(height: 10,),
+
+                MyTextField(
+      controller: usernameController,
+      hintText: 'Username',
+      obscureText: false,
+    ),
+
+    const SizedBox(height: 10,),
 
                 
                 

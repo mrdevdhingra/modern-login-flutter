@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:modern_login/components/my_button.dart';
@@ -15,48 +16,72 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   //text editing controllers
-  final emailController = TextEditingController();
-
+  final emailOrUsernameController = TextEditingController();
   final passwordController = TextEditingController();
 
-  //Sign userin method
-  void signUserIn() async {
+  // Get email from username
+  Future<String?> getEmailFromUsername(String username) async {
+    final userSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .where('username', isEqualTo: username)
+        .get();
 
-      //show loading
-      showDialog(
-        context: context, builder:(context) {
-          return Center(
-            child: CircularProgressIndicator(),
-          ); 
-        }
-        );
-
-
-
-    //sign in
-    try{
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-      email: emailController.text, 
-      password: passwordController.text
-      );
-      Navigator.pop(context);
-    } on FirebaseAuthException catch(e){
-      Navigator.pop(context);
-      showErrorMessage(e.code);
-    } 
+    if (userSnapshot.docs.isNotEmpty) {
+      return userSnapshot.docs.first.get('email');
+    } else {
+      return null;
+    }
   }
 
-    //ERROR MESSAGE
-    void showErrorMessage(String message){
-      showDialog(
-        context: context,
-         builder: (context){
-          return  AlertDialog(
-            title: Text(message),
-          );
-         }
+  // Sign user in method
+  void signUserIn() async {
+    // Show loading
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Center(
+          child: CircularProgressIndicator(),
         );
+      },
+    );
+
+    String? email = emailOrUsernameController.text;
+
+    if (!email.contains('@')) {
+      // If the entered value is a username, get the associated email
+      email = await getEmailFromUsername(emailOrUsernameController.text);
+      if (email == null) {
+        Navigator.pop(context);
+        showErrorMessage('Username not found');
+        return;
+      }
     }
+
+    // Sign in
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: passwordController.text,
+      );
+      Navigator.pop(context);
+    } on FirebaseAuthException catch (e) {
+      Navigator.pop(context);
+      showErrorMessage(e.code);
+    }
+  }
+
+  // ERROR MESSAGE
+  void showErrorMessage(String message) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(message),
+        );
+      },
+    );
+  }
+
 
 
   @override
@@ -91,8 +116,8 @@ class _LoginPageState extends State<LoginPage> {
                 
                 //username or email
                 MyTextField(
-                  controller: emailController,
-                  hintText: 'Email',
+                  controller: emailOrUsernameController,
+                  hintText: 'Email or username',
                   obscureText: false,
           
                 ),

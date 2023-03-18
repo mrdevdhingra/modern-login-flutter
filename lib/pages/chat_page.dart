@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:modern_login/pages/home_page.dart';
 
+import 'chat_system.dart';
+
 class ChatPage extends StatelessWidget {
   final PageController pageController;
 
@@ -22,9 +24,7 @@ class ChatPage extends StatelessWidget {
           },
         ),
       ),
-      body: Center(
-        child: Text('This is the Messages page.'),
-      ),
+      body: ChatSystem(),
     );
   }
 }
