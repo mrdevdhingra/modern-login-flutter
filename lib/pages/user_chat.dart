@@ -14,75 +14,87 @@ class UserChat extends StatefulWidget {
 }
 
 class _UserChatState extends State<UserChat> {
-  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
-  List<QueryDocumentSnapshot> _messages = [];
+ List<QueryDocumentSnapshot> _messages = [];
+  TextEditingController messageController = TextEditingController();
   ScrollController _scrollController = ScrollController();
 
-  TextEditingController messageController = TextEditingController();
+  @override
+  void initState() {
+    super.initState();
+    _listenToChatMessages();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   Future<DocumentSnapshot> getUserDetails(String uid) async {
     return await FirebaseFirestore.instance.collection('users').doc(uid).get();
   }
 
   Future<void> sendMessage() async {
-    if (messageController.text.isNotEmpty) {
-      String message = messageController.text.trim();
-      messageController.clear();
+  if (messageController.text.isNotEmpty) {
+    String message = messageController.text.trim();
+    messageController.clear();
 
-      await FirebaseFirestore.instance.collection('chats').add({
-        'senderUid': widget.currentUserUid,
-        'receiverUid': widget.chatUserUid,
-        'message': message,
-        'timestamp': FieldValue.serverTimestamp(),
+    
+
+    // Add the message with a local timestamp
+    DocumentReference docRef = await FirebaseFirestore.instance.collection('chats').add({
+      'senderUid': widget.currentUserUid,
+      'receiverUid': widget.chatUserUid,
+      'message': message,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    _scrollToBottom();
+  }
+}
+
+
+  void _scrollToBottom() {
+  if (_scrollController.hasClients) {
+    WidgetsBinding.instance!.addPostFrameCallback((_) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+}
+
+  void _listenToChatMessages() {
+  getChatMessages().listen((newMessages) {
+    if (mounted) { // Check if the widget is still mounted
+      setState(() {
+        _messages = newMessages;
       });
-
       _scrollToBottom();
     }
-  }
+  });
+}
 
  Stream<List<QueryDocumentSnapshot>> getChatMessages() {
-  Stream<QuerySnapshot> streamA = FirebaseFirestore.instance
+  return FirebaseFirestore.instance
       .collection('chats')
-      .where('senderUid', isEqualTo: widget.currentUserUid)
-      .where('receiverUid', isEqualTo: widget.chatUserUid)
-      .snapshots();
-
-  Stream<QuerySnapshot> streamB = FirebaseFirestore.instance
-      .collection('chats')
-      .where('senderUid', isEqualTo: widget.chatUserUid)
-      .where('receiverUid', isEqualTo: widget.currentUserUid)
-      .snapshots();
-
-  return Rx.combineLatest2<QuerySnapshot, QuerySnapshot, List<QueryDocumentSnapshot>>(
-    streamA,
-    streamB,
-    (a, b) {
-      List<QueryDocumentSnapshot> allDocs = [
-        ...a.docs,
-        ...b.docs,
-      ];
-
-      allDocs.sort((doc1, doc2) {
-        Timestamp time1 = doc1['timestamp'];
-        Timestamp time2 = doc2['timestamp'];
-        return time1.compareTo(time2);
+      .orderBy('timestamp', descending: true)
+      .snapshots()
+      .map((snapshot) {
+        List<QueryDocumentSnapshot> docs = snapshot.docs;
+        docs = docs.where((doc) {
+          bool isCurrentUser = doc['senderUid'] == widget.currentUserUid;
+          bool isChatUser = doc['senderUid'] == widget.chatUserUid;
+          bool isRelevant = (isCurrentUser || isChatUser) &&
+              (doc['receiverUid'] == widget.currentUserUid ||
+                  doc['receiverUid'] == widget.chatUserUid);
+          return isRelevant;
+        }).toList();
+        return docs;
       });
-
-      return allDocs;
-    },
-  );
 }
-
-void _scrollToBottom() {
-  if (_scrollController.hasClients) {
-    _scrollController.animateTo(
-      _scrollController.position.maxScrollExtent,
-      duration: Duration(milliseconds: 200),
-      curve: Curves.easeInOut,
-    );
-  }
-}
-
 
 
 
@@ -106,76 +118,54 @@ void _scrollToBottom() {
           ),
           body: Column(
             children: [
-             Expanded(
-          child: StreamBuilder<List<QueryDocumentSnapshot>>(
-            stream: getChatMessages(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return Center(child: CircularProgressIndicator());
-              }
+              Expanded(
+            child: ListView.builder(
+              controller: _scrollController,
+              reverse: true,
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                QueryDocumentSnapshot chatMessage = _messages[index];
+                bool isSentByCurrentUser = chatMessage['senderUid'] == widget.currentUserUid;
 
-              if (snapshot.data!.isEmpty) {
-                return Center(child: Text('No messages yet.'));
-              }
-
-              _messages = snapshot.data!;
-
-               
-
-              return ListView.builder(
-                controller: _scrollController,
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  QueryDocumentSnapshot chatMessage = _messages[index];
-                  bool isSentByCurrentUser = chatMessage['senderUid'] == widget.currentUserUid;
-                  
-
-                  return Align(
-                    alignment:
-                        isSentByCurrentUser ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: EdgeInsets.all(8.0),
-                      padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-                      decoration: BoxDecoration(
-                        color: isSentByCurrentUser ? Colors.blue : Colors.grey[300],
-                        borderRadius: BorderRadius.circular(20.0),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            chatMessage['message'],
-                            style: TextStyle(
-                              color: isSentByCurrentUser ? Colors.white : Colors.black,
-                            ),
-                          ),
-                          FutureBuilder<Timestamp>(
-              future: Future.value(chatMessage['timestamp']),
-              builder: (BuildContext context, AsyncSnapshot<Timestamp> snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Text('');
-                } else {
-                  return Text(
-                    snapshot.data!.toDate().toString(),
-                    style: TextStyle(
-                      fontSize: 12.0,
-                      color: isSentByCurrentUser
-                          ? Colors.white.withOpacity(0.7)
-                          : Colors.black.withOpacity(0.7),
+                return Align(
+                  alignment: isSentByCurrentUser
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: Container(
+                    margin: EdgeInsets.all(8.0),
+                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+                    decoration: BoxDecoration(
+                      color: isSentByCurrentUser ? Colors.blue : Colors.grey[300],
+                      borderRadius: BorderRadius.circular(20.0),
                     ),
-                  );
-                }
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          chatMessage['message'],
+                          style: TextStyle(
+                            color: isSentByCurrentUser ? Colors.white : Colors.black,
+                          ),
+                        ),Text(
+  chatMessage['timestamp'] != null && chatMessage['timestamp'] is Timestamp
+      ? chatMessage['timestamp'].toDate().toString()
+      : 'Pending...',
+  style: TextStyle(
+    fontSize: 12.0,
+    color: isSentByCurrentUser
+        ? Colors.white.withOpacity(0.7)
+        : Colors.black.withOpacity(0.7),
+  ),
+),
+
+                      ],
+                    ),
+                  ),
+                );
               },
             ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
           ),
-        ),
+             
 
 
 
